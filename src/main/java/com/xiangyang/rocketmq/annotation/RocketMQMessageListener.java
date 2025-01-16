@@ -14,10 +14,36 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
+@Documented
 @Component
 public @interface RocketMQMessageListener {
+    /**
+     * Topic
+     */
     String topic();
+
+    /**
+     * 消息过滤的 TAG
+     */
     String[] tags() default {"*"};
+
+    /**
+     * 消费者分组
+     */
     String consumerGroup();
+
+    /**
+     * 消费模式
+     */
     ConsumeMode consumeMode() default ConsumeMode.CONCURRENTLY;
+
+    /**
+     * 最大重试次数
+     */
+    int maxReconsumeTimes() default -1;
+
+    /**
+     * 消费线程数
+     */
+    int consumeThreadNums() default -1;
 }

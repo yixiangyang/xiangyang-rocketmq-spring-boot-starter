@@ -9,7 +9,7 @@ import org.springframework.context.SmartLifecycle;
  */
 @Slf4j
 public class RocketMQConsumerContainer implements SmartLifecycle {
-    private final List<Consumer> consumers = new ArrayList<>();
+    private final List<Consumer> consumers = new CopyOnWriteArrayList<>();
     private final RocketMQProperties properties;
     private volatile boolean running = false;
 
@@ -17,47 +17,68 @@ public class RocketMQConsumerContainer implements SmartLifecycle {
         this.properties = properties;
     }
 
-    public void registerConsumer(String topic, String[] tags, String consumerGroup,
-                                 MessageListener messageListener) {
+    public void registerConsumer(RocketMQMessageListener annotation, MessageListener listener) {
         Properties props = new Properties();
         props.setProperty(PropertyKeyConst.AccessKey, properties.getAccessKey());
         props.setProperty(PropertyKeyConst.SecretKey, properties.getSecretKey());
         props.setProperty(PropertyKeyConst.INSTANCE_ID, properties.getInstanceId());
-        props.setProperty(PropertyKeyConst.GROUP_ID, consumerGroup);
-        props.setProperty(PropertyKeyConst.MessageModel, PropertyValueConst.CLUSTERING);
+        props.setProperty(PropertyKeyConst.GROUP_ID, annotation.consumerGroup());
+
+        // 设置消费线程数
+        int consumeThreadNums = annotation.consumeThreadNums() > 0 ?
+                annotation.consumeThreadNums() :
+                properties.getConsumer().getConsumeThreadNums();
+        props.setProperty(PropertyKeyConst.ConsumeThreadNums,
+                String.valueOf(consumeThreadNums));
+
+        // 设置最大重试次数
+        int maxReconsumeTimes = annotation.maxReconsumeTimes() > 0 ?
+                annotation.maxReconsumeTimes() :
+                properties.getConsumer().getMaxReconsumeTimes();
+        props.setProperty(PropertyKeyConst.MaxReconsumeTimes,
+                String.valueOf(maxReconsumeTimes));
 
         Consumer consumer = ONSFactory.createConsumer(props);
+        String topic = annotation.topic();
+        String[] tags = annotation.tags();
+
         for (String tag : tags) {
-            consumer.subscribe(topic, tag, messageListener);
+            consumer.subscribe(topic, tag, listener);
+            log.info("Register consumer: topic={}, tag={}, group={}",
+                    topic, tag, annotation.consumerGroup());
         }
+
         consumers.add(consumer);
     }
 
     @Override
     public void start() {
-        if (!running) {
+        if (!isRunning()) {
             try {
-                Thread.sleep(RocketMQConstant.CONSUMER_START_DELAY_TIME);
+                // 延迟1秒启动消费者
+                Thread.sleep(1000);
                 for (Consumer consumer : consumers) {
                     consumer.start();
                 }
                 running = true;
-                log.info("RocketMQ consumers started");
+                log.info("RocketMQ consumer container started, consumer size: {}",
+                        consumers.size());
             } catch (Exception e) {
-                log.error("Start RocketMQ consumers error", e);
-                throw new RuntimeException("Start RocketMQ consumers failed", e);
+                log.error("Start RocketMQ consumer container error", e);
+                throw new RocketMQException("Start consumer container failed", e);
             }
         }
     }
 
     @Override
     public void stop() {
-        if (running) {
+        if (isRunning()) {
             for (Consumer consumer : consumers) {
                 consumer.shutdown();
             }
+            consumers.clear();
             running = false;
-            log.info("RocketMQ consumers stopped");
+            log.info("RocketMQ consumer container stopped");
         }
     }
 
@@ -67,18 +88,8 @@ public class RocketMQConsumerContainer implements SmartLifecycle {
     }
 
     @Override
-    public boolean isAutoStartup() {
-        return true;
-    }
-
-    @Override
-    public void stop(Runnable callback) {
-        stop();
-        callback.run();
-    }
-
-    @Override
     public int getPhase() {
+        // 确保消费者在其他组件之后启动，之前停止
         return Integer.MAX_VALUE;
     }
 }

@@ -15,42 +15,74 @@ import java.util.Set;
 @ConfigurationProperties(prefix = "rocketmq")
 @Data
 public class RocketMQProperties {
-    private String accessKey;
-    private String secretKey;
-    private String instanceId;
-    private String nameServerAddr;
+    /**
+     * 是否启用 RocketMQ
+     */
+    private boolean enabled = true;
 
+    /**
+     * AccessKey
+     */
+    private String accessKey;
+
+    /**
+     * SecretKey
+     */
+    private String secretKey;
+
+    /**
+     * 实例ID
+     */
+    private String instanceId;
+
+    /**
+     * 生产者配置
+     */
     private Producer producer = new Producer();
+
+    /**
+     * 消费者配置
+     */
     private Consumer consumer = new Consumer();
 
     @Data
     public static class Producer {
-        private String groupId;
+        /**
+         * 是否启用生产者
+         */
         private boolean enabled = true;
-        private Map<String, ProducerConfig> configs = new HashMap<>();
+
+        /**
+         * 生产者分组
+         */
+        private String groupId;
+
+        /**
+         * 发送超时时间(毫秒)
+         */
+        private int sendMsgTimeout = 3000;
+
+        /**
+         * 重试次数
+         */
+        private int retryTimes = 3;
     }
 
     @Data
     public static class Consumer {
-        private String groupId;
+        /**
+         * 是否启用消费者
+         */
         private boolean enabled = true;
-        private Map<String, ConsumerConfig> configs = new HashMap<>();
-    }
 
-    @Data
-    public static class ProducerConfig {
-        private String topic;
-        private String tag;
-    }
+        /**
+         * 消费者线程数
+         */
+        private int consumeThreadNums = 20;
 
-    @Data
-    public static class ConsumerConfig {
-        private String topic;
-        private Set<String> tags = new HashSet<>();
-        private ConsumeMode consumeMode = ConsumeMode.CONCURRENTLY;
-    }
-
-    public enum ConsumeMode {
-        CONCURRENTLY, ORDERLY
+        /**
+         * 消费失败最大重试次数
+         */
+        private int maxReconsumeTimes = 16;
     }
 }
