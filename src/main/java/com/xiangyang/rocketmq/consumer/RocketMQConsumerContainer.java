@@ -160,9 +160,9 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
         if (!StringUtils.hasText(properties.getSecretKey())) {
             throw new IllegalArgumentException("RocketMQ secretKey cannot be empty");
         }
-        if (!StringUtils.hasText(properties.getInstanceId())) {
-            throw new IllegalArgumentException("RocketMQ instanceId cannot be empty");
-        }
+//        if (!StringUtils.hasText(properties.getInstanceId())) {
+//            throw new IllegalArgumentException("RocketMQ instanceId cannot be empty");
+//        }
         // 打印验证信息
         log.info("RocketMQ properties validated successfully");
     }
