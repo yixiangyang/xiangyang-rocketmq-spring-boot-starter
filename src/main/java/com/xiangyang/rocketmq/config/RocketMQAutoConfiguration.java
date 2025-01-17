@@ -22,6 +22,7 @@ public class RocketMQAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "rocketmq.producer", value = "enabled", havingValue = "true")
     public RocketMQProducerTemplate rocketMQProducerTemplate(RocketMQProperties properties) {
         return new RocketMQProducerTemplate(properties);
     }

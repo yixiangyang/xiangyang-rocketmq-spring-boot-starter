@@ -12,19 +12,21 @@ public class RocketMQProperties {
     private String nameServerAddr;
 
     private Producer producer = new Producer();
-//    private Consumer consumer = new Consumer();
+    private Consumer consumer = new Consumer();
 
     @Data
     public static class Producer {
+        private boolean enabled = false;
         private String groupId;
         private Integer sendMsgTimeout = 3000;
         private Integer retryTimesWhenSendFailed = 2;
     }
 
-//    @Data
-//    public static class Consumer {
-//        private String group;
-//        private Integer consumeThreadNums = 20;
-//        private Integer maxReconsumeTimes = 16;
-//    }
+    @Data
+    public static class Consumer {
+        private boolean enabled = false;
+        private String group;
+        private Integer consumeThreadNums = 20;
+        private Integer maxReconsumeTimes = 16;
+    }
 }
