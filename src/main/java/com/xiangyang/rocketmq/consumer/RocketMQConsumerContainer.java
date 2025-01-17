@@ -57,14 +57,22 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
     public void afterSingletonsInstantiated() {
         Map<String, Object> beans = applicationContext.getBeansWithAnnotation(RocketMQMessageListener.class);
 
+        if (beans.isEmpty()) {
+            log.warn("No RocketMQ consumers found in context");
+            return;
+        }
+
+        log.info("Found {} RocketMQ consumer(s)", beans.size());
         beans.forEach((beanName, bean) -> {
             RocketMQMessageListener annotation = bean.getClass().getAnnotation(RocketMQMessageListener.class);
+            log.info("Processing consumer bean: {}, topic: {}", beanName, annotation.topic());
             createConsumer(annotation, bean);
         });
 
         // 延迟1秒启动消费者
         executorService.execute(() -> {
             try {
+                log.info("Waiting 1 second before starting consumers...");
                 Thread.sleep(1000);
                 startConsumers();
             } catch (InterruptedException e) {
@@ -77,10 +85,15 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
     }
 
     private void startConsumers() {
+        if (consumers.isEmpty()) {
+            log.warn("No consumers to start");
+            return;
+        }
+
         consumers.forEach(consumer -> {
             try {
                 consumer.start();
-                log.info("RocketMQ consumer started: {}", consumer);
+                log.info("RocketMQ consumer started successfully: {}", consumer);
             } catch (Exception e) {
                 log.error("Failed to start consumer: {}", consumer, e);
             }
@@ -91,18 +104,36 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
     private void createConsumer(RocketMQMessageListener annotation, Object bean) {
         try {
             validateAnnotation(annotation);
+            validateProperties(); // 添加属性验证
 
             Properties props = buildConsumerProperties(annotation);
+            // 打印连接属性
+            log.info("Creating consumer with properties: accessKey={}, instanceId={}, groupId={}, topic={}, tags={}",
+                    properties.getAccessKey(),
+                    properties.getInstanceId(),
+                    annotation.consumerGroup(),
+                    annotation.topic(),
+                    String.join(",", annotation.tags()));
+
             Consumer consumer = ONSFactory.createConsumer(props);
 
             String subscription = buildSubscription(annotation.tags());
-            consumer.subscribe(annotation.topic(), subscription, (message, context) -> {
-                try {
-                    return processMessage(message, bean);
-                } catch (Exception e) {
-                    log.error("Process message error, topic: {}, msgId: {}",
-                            message.getTopic(), message.getMsgID(), e);
-                    return Action.ReconsumeLater;
+            consumer.subscribe(annotation.topic(), subscription, new MessageListener() {
+                @Override
+                public Action consume(Message message, ConsumeContext context) {
+                    try {
+                        log.info("Received message: topic={}, msgId={}, tag={}, key={}, body={}",
+                                message.getTopic(),
+                                message.getMsgID(),
+                                message.getTag(),
+                                message.getKey(),
+                                new String(message.getBody(), StandardCharsets.UTF_8));
+                        return processMessage(message, bean);
+                    } catch (Exception e) {
+                        log.error("Process message error, topic: {}, msgId: {}",
+                                message.getTopic(), message.getMsgID(), e);
+                        return Action.ReconsumeLater;
+                    }
                 }
             });
 
@@ -114,6 +145,20 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
             log.error("Failed to create consumer for bean: {}", bean.getClass().getName(), e);
             throw new RuntimeException("Failed to create consumer", e);
         }
+    }
+
+    private void validateProperties() {
+        if (!StringUtils.hasText(properties.getAccessKey())) {
+            throw new IllegalArgumentException("RocketMQ accessKey cannot be empty");
+        }
+        if (!StringUtils.hasText(properties.getSecretKey())) {
+            throw new IllegalArgumentException("RocketMQ secretKey cannot be empty");
+        }
+        if (!StringUtils.hasText(properties.getInstanceId())) {
+            throw new IllegalArgumentException("RocketMQ instanceId cannot be empty");
+        }
+        // 打印验证信息
+        log.info("RocketMQ properties validated successfully");
     }
 
     private void validateAnnotation(RocketMQMessageListener annotation) {
