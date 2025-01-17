@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationContextAware,
@@ -32,13 +33,14 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
     private BeanFactory beanFactory;
     private ApplicationContext applicationContext;
     private final ExecutorService executorService;
+    private volatile boolean started = false;
 
     public RocketMQConsumerContainer(RocketMQProperties properties) {
         this.properties = properties;
         this.executorService = Executors.newSingleThreadExecutor(r -> {
             Thread thread = new Thread(r);
             thread.setName("RocketMQConsumerStarter");
-            thread.setDaemon(true);
+            thread.setDaemon(false);  // 设置为非守护线程
             return thread;
         });
     }
@@ -55,6 +57,9 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
 
     @Override
     public void afterSingletonsInstantiated() {
+        if (started) {
+            return;
+        }
         Map<String, Object> beans = applicationContext.getBeansWithAnnotation(RocketMQMessageListener.class);
 
         if (beans.isEmpty()) {
@@ -75,6 +80,7 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
                 log.info("Waiting 1 second before starting consumers...");
                 Thread.sleep(1000);
                 startConsumers();
+                started = true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.error("Consumer startup interrupted", e);
@@ -257,8 +263,17 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
 
     @Override
     public void destroy() {
+        // 优雅关闭线程池
         if (!executorService.isShutdown()) {
-            executorService.shutdownNow();
+            try {
+                executorService.shutdown();
+                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                executorService.shutdownNow();
+            }
         }
 
         consumers.forEach(consumer -> {
