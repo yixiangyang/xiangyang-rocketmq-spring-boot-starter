@@ -176,6 +176,7 @@ public class RocketMQConsumerContainer implements BeanFactoryAware, ApplicationC
         props.setProperty(PropertyKeyConst.SecretKey, properties.getSecretKey());
         props.setProperty(PropertyKeyConst.INSTANCE_ID, properties.getInstanceId());
         props.setProperty(PropertyKeyConst.GROUP_ID, annotation.consumerGroup());
+        props.setProperty(PropertyKeyConst.NAMESRV_ADDR,properties.getNameServerAddr());
 
 //        // 设置消费线程数
 //        if (properties.getConsumer().getConsumeThreadNums() != null) {
