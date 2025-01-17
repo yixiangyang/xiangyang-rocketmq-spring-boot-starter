@@ -29,6 +29,7 @@ public class RocketMQAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "rocketmq.consumer", value = "enabled", havingValue = "true")
     public RocketMQConsumerContainer rocketMQConsumerContainer(RocketMQProperties properties) {
         return new RocketMQConsumerContainer(properties);
     }
